@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Türk bayrağı favicon (SVG - tüm tarayıcılar destekler) -->
+    <link rel="icon" type="image/svg+xml" href="https://cdn.jsdelivr.net/npm/country-flag-icons@1.5.7/3x2/TR.svg">
+    <!-- Yedek kare format (PNG) -->
+    <link rel="alternate icon" type="image/png" href="https://flagcdn.com/32x24/tr.png">
+    <title>Turkish Genocide Map</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Font Awesome (ikonlar için) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+            background-color: #000;
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #harita {
+            flex: 3;
+            width: 100%;
+            background: #1a1a1a;
+            z-index: 1;
+        }
+
+        #liste-panel {
+            flex: 2;
+            background-color: #0a0a0a;
+            border-top: 2px solid #c00;
+            overflow-y: auto;
+            padding: 12px;
+            scrollbar-width: thin;
+            scrollbar-color: #c00 #333;
+        }
+
+        #liste-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+        #liste-panel::-webkit-scrollbar-track {
+            background: #333;
+        }
+        #liste-panel::-webkit-scrollbar-thumb {
+            background: #c00;
+            border-radius: 10px;
+        }
+
+        .liste-oge {
+            background-color: #1a1a1a;
+            border-left: 4px solid #c00;
+            border-radius: 0 12px 12px 0;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 10px rgba(255, 0, 0, 0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .liste-oge:active {
+            transform: scale(0.99);
+            box-shadow: 0 2px 5px rgba(255, 0, 0, 0.4);
+        }
+
+        .liste-oge h3 {
+            color: #c00;
+            font-size: 1.1rem;
+            margin-bottom: 6px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .liste-oge h3 i {
+            font-size: 1.2rem;
+        }
+
+        .kisa-aciklama {
+            font-size: 0.9rem;
+            color: #ddd;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
+        .detay-buton {
+            background: transparent;
+            border: 1px solid #c00;
+            color: #c00;
+            border-radius: 30px;
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s, color 0.2s;
+            margin-top: 4px;
+        }
+
+        .detay-buton:hover {
+            background: #c00;
+            color: #000;
+        }
+
+        .detay-buton i {
+            font-size: 1rem;
+        }
+
+        .detay-icerik {
+            display: none;
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #222;
+            border-radius: 8px;
+            border-left: 3px solid #c00;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #eee;
+        }
+
+        .detay-icerik.acik {
+            display: block;
+        }
+
+        .detay-icerik a {
+            color: #ff6666;
+            text-decoration: none;
+            border-bottom: 1px dotted #c00;
+        }
+
+        .detay-icerik a:hover {
+            color: #fff;
+        }
+
+        .detay-icerik img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 10px 0;
+            border: 1px solid #c00;
+        }
+
+        .kategori-etiket {
+            display: inline-block;
+            background: #330000;
+            color: #c00;
+            border-radius: 16px;
+            padding: 3px 10px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+
+        .harita-bilgi {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            text-align: center;
+            z-index: 1000;
+            border: 1px solid #c00;
+            backdrop-filter: blur(5px);
+            pointer-events: none;
+        }
+
+        .harita-bilgi a {
+            color: #ff6666;
+            pointer-events: auto;
+            text-decoration: none;
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: #1a1a1a;
+            color: #fff;
+            border-radius: 12px;
+            border: 1px solid #c00;
+            box-shadow: 0 4px 15px rgba(255, 0, 0, 0.3);
+        }
+
+        .leaflet-popup-tip {
+            background: #1a1a1a;
+            border-top: 1px solid #c00;
+            border-left: 1px solid #c00;
+        }
+
+        .leaflet-popup-content {
+            font-size: 0.9rem;
+            margin: 12px;
+        }
+
+        .popup-detay-buton {
+            background: transparent;
+            border: 1px solid #c00;
+            color: #c00;
+            border-radius: 20px;
+            padding: 5px 10px;
+            font-size: 0.8rem;
+            margin-top: 8px;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .popup-detay-buton:hover {
+            background: #c00;
+            color: #000;
+        }
+
+        .custom-marker {
+            background: transparent;
+            border: none;
+        }
+
+        .custom-marker i {
+            font-size: 30px;
+            text-shadow: 0 0 5px #000;
+        }
+
+        .yukleniyor {
+            text-align: center;
+            padding: 20px;
+            color: #c00;
+            font-size: 1.2rem;
+        }
+
+        /* Açılış ekranı */
+        #acilis-ekrani {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background-color: #050505;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 1.5s ease-out;
+        }
+
+        .acilis-gorseli {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.3;
+            z-index: -1;
+        }
+
+        .metin-kutusu {
+            text-align: center;
+            color: #ffffff;
+            padding: 0 20px;
+            text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.8);
+            z-index: 1;
+        }
+
+        .soz {
+            font-size: 3vw;
+            font-family: 'Times New Roman', serif;
+            font-weight: bold;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+
+        .imza {
+            font-size: 1.5vw;
+            font-family: 'Arial', sans-serif;
+            font-weight: normal;
+            color: #c00;
+            font-style: italic;
+        }
+
+        @media (max-width: 768px) {
+            .soz { font-size: 6vw; }
+            .imza { font-size: 4vw; }
+        }
+
+        .gizle {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="acilis-ekrani">
+        <img src="gökbayrak.svg" alt="Açılış Arka Planı" class="acilis-gorseli">
+        
+        <div class="metin-kutusu">
+            <h1 class="soz">"Tarihini bilmeyen milletler, yok olmaya mahkûmdur."</h1>
+            <h2 class="imza">Halaskârgazi Mustafa Kemal Atatürk</h2>
+        </div>
+    </div>
+
+    <div id="harita"></div>
+    <div class="harita-bilgi">
+        <i class="fas fa-flag" style="color: #c00; margin-right: 5px;"></i>
+        <strong>Türklerin Uğradığı Soykırım, Katliam, İşkence ve Suikastlar</strong> | Tüm verilerin kaynakları belirtilmiştir.
+        <a href="#" onclick="alert('Soykırım (genocide), Yunanca genos (ırk, ulus, kabile) ve Latince cide (öldürme) kelimelerinden türemiştir. Soykırım ırksal, dinsel, ulusal ya da etnik bir grubun kasıtlı ve sistemli bir biçimde yok edilmesi olarak tanımlanmaktadır.Kavram ilk kez Nazilerin 1933-1945 yılları arasında giriştiği toplu kırımları tanımlayan hukuki bir kavram olarak ortaya atılmıştır.')">Bilgi</a>
+    </div>
+    <div id="liste-panel">
+        <div class="yukleniyor"><i class="fas fa-spinner fa-pulse"></i> Veriler yükleniyor...</div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Açılış Ekranı Scripti -->
+    <script>
+        window.addEventListener('load', () => {
+            const acilisEkrani = document.getElementById('acilis-ekrani');
+            
+            setTimeout(() => {
+                acilisEkrani.classList.add('gizle');
+                
+                setTimeout(() => {
+                    acilisEkrani.style.display = 'none';
+                    document.body.style.overflow = 'auto';
+                }, 1500);
+                
+            }, 3500); 
+        });
+    </script>
+    
+    <script>
+        (function() {
+            const map = L.map('harita').setView([39.0, 35.0], 6);
+
+            // Siyah temaya uygun harita katmanı (CartoDB Dark Matter)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; CartoDB'
+            }).addTo(map);
+
+            let markers = [];
+
+            // Veriyi JSON'dan çek
+            fetch('veri.json')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Veri yüklenemedi');
+                    }
+                    return response.json();
+                })
+                .then(veri => {
+                    document.querySelector('.yukleniyor')?.remove();
+
+                    // Marker'ları ekle
+                    veri.forEach((olay, index) => {
+                        const id = olay.id !== undefined ? olay.id : index;
+
+                        // Kategoriye göre ikon belirle
+                        let iconHtml = '<i class="fas fa-map-marker-alt" style="color: #c00;"></i>'; // varsayılan
+                        switch (olay.kategori) {
+                            case 'soykirim':
+                                iconHtml = '<i class="fas fa-skull-crossbones" style="color: #c00;"></i>';
+                                break;
+                            case 'katliam':
+                                iconHtml = '<i class="fas fa-ribbon" style="color: #ff4444;"></i>';
+                                break;
+                            case 'iskence':
+                                iconHtml = '<i class="fas fa-eye-slash" style="color: #ffaa00;"></i>';
+                                break;
+                            case 'suikast':
+                                iconHtml = '<i class="fas fa-crosshairs" style="color: #ff6666;"></i>';
+                                break;
+                            default:
+                                iconHtml = '<i class="fas fa-map-marker-alt" style="color: #c00;"></i>';
+                        }
+
+                        const customIcon = L.divIcon({
+                            className: 'custom-marker',
+                            html: iconHtml,
+                            iconSize: [30, 30],
+                            popupAnchor: [0, -15]
+                        });
+
+                        const marker = L.marker([olay.lat, olay.lng], { icon: customIcon }).addTo(map);
+
+                        // Popup içeriği
+const popupIcerik = `
+    <b style="color:#c00;">${olay.baslik}</b><br>
+    <span style="color:#aaa;">${olay.tarih} - ${olay.konum || 'Konum belirtilmemiş'}</span><br>
+    <span style="color:#ddd;">${olay.kisa}</span><br>
+    <button class="popup-detay-buton" data-id="${id}"><i class="fas fa-chevron-circle-down"></i> Listede detayı aç</button>
+`;
+                        marker.bindPopup(popupIcerik);
+
+                        // Popup açıldığında butona işlev ekle
+                        marker.on('popupopen', function() {
+                            const popupBtn = document.querySelector('.popup-detay-buton');
+                            if (popupBtn) {
+                                popupBtn.addEventListener('click', function(e) {
+                                    const id = this.getAttribute('data-id');
+                                    const hedefOge = document.querySelector(`.liste-oge[data-id="${id}"]`);
+                                    if (hedefOge) {
+                                        const detayDiv = document.getElementById(`detay-${id}`);
+                                        const btn = hedefOge.querySelector('.detay-buton');
+                                        if (detayDiv && !detayDiv.classList.contains('acik')) {
+                                            btn.click();
+                                        }
+                                        hedefOge.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }
+                                    map.closePopup();
+                                }, { once: true });
+                            }
+                        });
+
+                        markers[id] = marker;
+                    });
+
+                    // Listeyi oluştur
+                    listeyiGuncelle(veri);
+                })
+                .catch(hata => {
+                    console.error('Hata:', hata);
+                    document.querySelector('#liste-panel').innerHTML = `
+                        <div style="color: #c00; text-align: center; padding: 20px;">
+                            <i class="fas fa-exclamation-triangle"></i> Veri yüklenemedi. Lütfen daha sonra tekrar deneyin.
+                        </div>
+                    `;
+                });
+
+            function listeyiGuncelle(veri) {
+                const listePanel = document.getElementById('liste-panel');
+                listePanel.innerHTML = '';
+
+                veri.forEach((olay, index) => {
+                    const id = olay.id !== undefined ? olay.id : index;
+
+                    // Kategori etiketi
+                    const kategoriEtiket = olay.kategori ? `<span class="kategori-etiket">${olay.kategori}</span>` : '';
+
+                    // Kısa açıklama
+                    const kisaMetin = olay.kisa || 'Açıklama yok.';
+
+                    // Uzun açıklama
+                    const uzunMetin = olay.uzun || 'Detay bulunmuyor.';
+                    let kaynakHtml = '';
+                    if (olay.kaynaklar && olay.kaynaklar.length) {
+                        kaynakHtml = '<div style="margin-top:10px;"><strong>Kaynaklar:</strong><ul>';
+                        olay.kaynaklar.forEach(k => {
+                            kaynakHtml += `<li><a href="${k}" target="_blank">${k}</a></li>`;
+                        });
+                        kaynakHtml += '</ul></div>';
+                    }
+
+                    let gorselHtml = '';
+                    if (olay.gorsel) {
+                        gorselHtml = `<img src="${olay.gorsel}" alt="${olay.baslik}" style="max-width:100%; border-radius:8px; margin:10px 0;">`;
+                    }
+
+                    // Başlık ikonunu kategoriye göre belirle (liste için)
+                    let baslikIcon = 'fa-map-pin';
+                    switch (olay.kategori) {
+                        case 'soykirim': baslikIcon = 'fa-skull-crossbones'; break;
+                        case 'katliam': baslikIcon = 'fa-ribbon'; break;
+                        case 'iskence': baslikIcon = 'fa-eye-slash'; break;
+                        case 'suikast': baslikIcon = 'fa-crosshairs'; break;
+                    }
+
+                    const ogeDiv = document.createElement('div');
+                    ogeDiv.className = 'liste-oge';
+                    ogeDiv.setAttribute('data-id', id);
+
+                    ogeDiv.innerHTML = `
+    <h3 style="display: flex; flex-wrap: wrap; align-items: center; gap: 5px;">
+        <i class="fas ${baslikIcon}" style="color:#c00;"></i>
+        ${olay.baslik}
+        <span style="color:#aaa; font-size:0.9rem;">(${olay.tarih} - ${olay.konum || 'Konum belirtilmemiş'})</span>
+        ${kategoriEtiket}
+    </h3>
+    <div class="kisa-aciklama">${kisaMetin}</div>
+    <button class="detay-buton" data-id="${id}">
+        <i class="fas fa-chevron-circle-down"></i> Detay Göster
+    </button>
+    <div class="detay-icerik" id="detay-${id}">
+        ${uzunMetin}
+        ${gorselHtml}
+        ${kaynakHtml}
+    </div>
+`;
+
+                    // Tüm öğeye tıklayınca haritada odaklan
+                    ogeDiv.addEventListener('click', function(e) {
+                        if (e.target.classList.contains('detay-buton') || e.target.closest('.detay-buton')) return;
+                        const marker = markers[id];
+                        if (marker) {
+                            map.flyTo([olay.lat, olay.lng], 10, { duration: 1.2 });
+                            marker.openPopup();
+                        }
+                    });
+
+                    // Detay butonu işlevi
+                    const detayBtn = ogeDiv.querySelector('.detay-buton');
+                    detayBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const detayDiv = document.getElementById(`detay-${id}`);
+                        detayDiv.classList.toggle('acik');
+                        if (detayDiv.classList.contains('acik')) {
+                            detayBtn.innerHTML = '<i class="fas fa-chevron-circle-up"></i> Detay Gizle';
+                        } else {
+                            detayBtn.innerHTML = '<i class="fas fa-chevron-circle-down"></i> Detay Göster';
+                        }
+                    });
+
+                    listePanel.appendChild(ogeDiv);
+                });
+            }
+        })();
+    </script>
+</body>
+</html>
